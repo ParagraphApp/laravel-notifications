@@ -16,12 +16,15 @@ PARAGRAPH_PROJECT_ID=XXX
 PARAGRAPH_API_KEY=YYY
 ```
 
+To get your API key and project ID simply create a new project on Paragraph:
+https://paragraph.ph/repos/import
+
 ## Commands
 
 To automatically discover all Laravel Notification classes run:
 
 ```bash
-$ php artisan paragraph:submit {namespace?}
+$ php artisan paragraph:submit [namespace]
 ```
 
 By default, the namespace is "App". This command will send the list of notification
@@ -36,7 +39,6 @@ discovered you can pass an extra argument:
 ```bash
 $ php artisan paragraph:submit --ignore-cache
 ```
-
 
 ## Creating an account
 
