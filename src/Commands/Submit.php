@@ -23,28 +23,7 @@ class Submit extends Command
         $classes = CachingClassFinder::getClassesInNamespace($namespace, $this->option('ignore-cache') ?: false);
         $storage = resolve(Storage::class);
 
-        $files = file_exists(storage_path($storage->workingDirectory)) ? scandir(storage_path($storage->workingDirectory)) : [];
-        $files = collect($files)
-            ->map(function ($path) use ($storage) {
-                preg_match('/(?<class>.+)_(?<channel>.+)\.render$/', $path, $matches);
-
-                if (! $matches) {
-                    return;
-                }
-
-                return [
-                    'class' => $matches['class'],
-                    'channel' => $matches['channel'],
-                    'render' => file_get_contents(storage_path($storage->workingDirectory).DIRECTORY_SEPARATOR.$path),
-                ];
-            })
-            ->filter()
-            ->groupBy('class')
-            ->map(function ($class) {
-                return [
-                    'channels' => $class->mapWithKeys(fn ($g) => [$g['channel'] => ['render' => $g['render']]]),
-                ];
-            });
+        $files = $this->findTemporaryFiles(storage_path($storage->workingDirectory));
 
         $notifications = collect($classes)
             ->filter(function ($class) {
@@ -96,11 +75,37 @@ class Submit extends Command
         $client = resolve(ApiClient::class);
         $client->submitNotifications($notifications->values()->toArray());
 
-        $files = scandir(storage_path($storage->workingDirectory));
+        $storage->resetCounters();
+    }
 
-        collect($files)
-            ->filter(fn ($path) => preg_match('/\.counter$/', $path))
-            ->unique()
-            ->each(fn ($path) => unlink(storage_path($storage->workingDirectory.DIRECTORY_SEPARATOR.$path)));
+    protected function findTemporaryFiles($folder)
+    {
+        if (! file_exists($folder)) {
+            return collect([]);
+        }
+
+        $files = scandir(storage_path($folder));
+
+        return collect($files)
+            ->map(function ($file) use ($folder) {
+                preg_match('/(?<class>.+)_(?<channel>.+)\.render$/', $file, $matches);
+
+                if (! $matches) {
+                    return;
+                }
+
+                return [
+                    'class' => $matches['class'],
+                    'channel' => $matches['channel'],
+                    'render' => file_get_contents($folder.DIRECTORY_SEPARATOR.$file),
+                ];
+            })
+            ->filter()
+            ->groupBy('class')
+            ->map(function ($class) {
+                return [
+                    'channels' => $class->mapWithKeys(fn ($g) => [$g['channel'] => ['render' => $g['render']]]),
+                ];
+            });
     }
 }

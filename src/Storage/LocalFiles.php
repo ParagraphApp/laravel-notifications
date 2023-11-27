@@ -34,7 +34,7 @@ class LocalFiles
         }
     }
 
-    protected function save($contents, Notification $notification, $type)
+    public function save($contents, Notification $notification, $type)
     {
         $path = $this->filename($notification, $type);
 
@@ -51,6 +51,21 @@ class LocalFiles
         file_put_contents($path, $contents);
 
         Log::info('Saved a new notification render for '.get_class($notification)." as {$path}");
+    }
+
+    public function resetCounters()
+    {
+        if (! file_exists(storage_path($this->workingDirectory))) {
+            return;
+        }
+
+        $files = scandir(storage_path($this->workingDirectory));
+
+        collect($files)
+            ->filter(fn ($path) => preg_match('/\.counter$/', $path))
+            ->unique()
+            ->each(fn ($path) => unlink(storage_path($this->workingDirectory.DIRECTORY_SEPARATOR.$path)));
+
     }
 
     protected function recordAHit($path)
