@@ -24,9 +24,19 @@ To automatically discover all Laravel Notification classes run:
 $ php artisan paragraph:submit {namespace?}
 ```
 
-By default the namespace is "App". This command will send the list of notification
+By default, the namespace is "App". This command will send the list of notification
 classes as well as any collected data (rendered views, number of hits) to the Paragraph
 dashboard via API.
+
+Class auto-discovery in PHP is an expensive process and takes quite some time,
+because of this we cache the list of classes using Laravel's Storage facade using the 
+'file' driver. If you just added a new notification class and want to make sure it's 
+discovered you can pass an extra argument:
+
+```bash
+$ php artisan paragraph:submit --ignore-cache
+```
+
 
 ## Creating an account
 

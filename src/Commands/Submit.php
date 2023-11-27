@@ -10,7 +10,7 @@ use Illuminate\Notifications\Notification;
 
 class Submit extends Command
 {
-    protected $signature = 'paragraph:submit {namespace?}';
+    protected $signature = 'paragraph:submit {namespace?} {--ignore-cache}';
 
     protected $description = 'Auto-discover Notification classes, send data to API';
 
@@ -20,9 +20,10 @@ class Submit extends Command
     public function handle()
     {
         $namespace = $this->argument('namespace') ?: 'App';
-        $classes = CachingClassFinder::getClassesInNamespace($namespace);
+        $classes = CachingClassFinder::getClassesInNamespace($namespace, $this->option('ignore-cache') ?: false);
         $storage = resolve(Storage::class);
-        $files = scandir(storage_path($storage->workingDirectory));
+
+        $files = file_exists(storage_path($storage->workingDirectory)) ? scandir(storage_path($storage->workingDirectory)) : [];
         $files = collect($files)
             ->map(function ($path) use ($storage) {
                 preg_match('/(?<class>.+)_(?<channel>.+)\.render$/', $path, $matches);
@@ -84,6 +85,13 @@ class Submit extends Command
                 $this->line(json_encode($notification['channels'], JSON_PRETTY_PRINT));
             }
         });
+
+        if (! $notifications->count()) {
+            $this->info("Nothing to send, aborting");
+            return;
+        }
+
+        $this->info("Submitting {$notifications->count()} notifications via the API");
 
         $client = resolve(ApiClient::class);
         $client->submitNotifications($notifications->values()->toArray());
