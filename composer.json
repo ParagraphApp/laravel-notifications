@@ -1,0 +1,38 @@
+{
+    "name": "paragraph/laravel-notifications",
+    "type": "library",
+    "description": "Automatically import and manage your Laravel notifications",
+    "keywords": ["texts","templates","localization"],
+    "homepage": "https://github.com/ParagraphApp/laravel-notifications",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Paragraph Software",
+            "email": "hello@paragraph.ph",
+            "homepage": "https://paragraph.ph"
+        }
+    ],
+    "require": {
+        "php": ">=5.5.0",
+        "illuminate/support": "5.*|^6.0|^7.0|^8.0|^9.0",
+        "guzzlehttp/guzzle": "^6.0|^7.2"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^8.5",
+        "larapack/dd": "^1.1"
+    },
+    "autoload": {
+        "psr-4": {
+            "Paragraph\\LaravelNotifications\\": "src/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Paragraph\\LaravelNotifications\\Providers\\ParagraphServiceProvider"
+            ]
+        }
+    }
+}
