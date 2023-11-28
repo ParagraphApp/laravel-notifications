@@ -42,9 +42,13 @@ class LocalFiles
             mkdir(dirname($path));
         }
 
+        $start = microtime(true);
         $this->recordAHit($contents, $path);
+        $end = microtime(true);
 
-        Log::info("Saved a new notification render for {$name} as {$path}");
+        if (config('app.debug')) {
+            Log::info("Saved a new notification render for {$name} as {$path} in " . ($end - $start) . "s");
+        }
     }
 
     public function cleanUp()
@@ -62,11 +66,19 @@ class LocalFiles
 
     protected function recordAHit($contents, $path)
     {
+        if (! file_exists(storage_path($this->workingDirectory))) {
+            mkdir(storage_path($this->workingDirectory));
+        }
+
         if (file_exists($path)) {
             return;
         }
 
-        $fp = fopen($path, 'r+');
+        $fp = fopen($path, 'w');
+
+        if (function_exists('gzcompress')) {
+            $contents = gzcompress($contents);
+        }
 
         if (flock($fp, LOCK_EX | LOCK_NB)) {
             file_put_contents($path, $contents);
