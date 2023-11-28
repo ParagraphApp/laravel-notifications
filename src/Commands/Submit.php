@@ -35,8 +35,8 @@ class Submit extends Command
                 $path = str_replace(base_path('/'), '', $path);
 
                 return array_merge([
-                    'class' => $class,
-                    'class_file' => $path,
+                    'name' => $class,
+                    'description' => $path,
                 ], $files->get($class, []));
             })
             ->map(function ($class) use ($storage) {
@@ -57,8 +57,8 @@ class Submit extends Command
             });
 
         $notifications->each(function ($notification) {
-            $this->info('* '.$notification['class']);
-            $this->line('Source file '.$notification['class_file']);
+            $this->info('* '.$notification['name']);
+            $this->line('Source file '.$notification['description']);
 
             if (isset($notification['channels'])) {
                 $this->line(json_encode($notification['channels'], JSON_PRETTY_PRINT));

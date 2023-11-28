@@ -20,7 +20,7 @@ class Client
 
     public function submitNotifications(array $notifications)
     {
-        $response = $this->client->post(config('paragraph.project_id') . "/notifications", [
+        $response = $this->client->post("repos/" . config('paragraph.project_id') . "/notifications/history", [
             'json' => $notifications,
         ]);
     }
