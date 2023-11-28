@@ -23,57 +23,49 @@ class Submit extends Command
         $classes = CachingClassFinder::getClassesInNamespace($namespace, $this->option('ignore-cache') ?: false);
         $storage = resolve(Storage::class);
 
-        $files = $this->findTemporaryFiles(storage_path($storage->workingDirectory));
-
         $notifications = collect($classes)
             ->filter(function ($class) {
                 return is_subclass_of($class, Notification::class);
             })
             ->reject(fn ($c) => (new \ReflectionClass($c))->isAbstract())
-            ->map(function ($class) use ($files) {
+            ->map(function ($class) {
                 $path = (new \ReflectionClass($class))->getFileName();
                 $path = str_replace(base_path('/'), '', $path);
 
-                return array_merge([
+                return [
                     'name' => $class,
                     'description' => $path,
-                ], $files->get($class, []));
+                ];
             })
-            ->map(function ($class) use ($storage) {
-                if (empty($class['channels'])) {
-                    return $class;
+            ->keyBy('name');
+
+        $hits = $this
+            ->findTemporaryFiles(storage_path($storage->workingDirectory))
+            ->map(function($hit) use ($notifications) {
+                $notification = $notifications->get($hit['name']);
+
+                if (! $notification) {
+                    return;
                 }
 
-                $class['channels'] = $class['channels']->map(function ($channel, $key) use ($storage, $class) {
-                    $path = storage_path($storage->workingDirectory)."/{$class['class']}"."_{$key}.render.counter";
-                    $hits = file_exists($path) ? file_get_contents($path) : 0;
+                return array_merge($hit, compact('notification'));
+            })
+            ->filter();
 
-                    return array_merge($channel, [
-                        'hits' => $hits,
-                    ]);
-                });
-
-                return $class;
-            });
-
-        $notifications->each(function ($notification) {
-            $this->info('* '.$notification['name']);
-            $this->line('Source file '.$notification['description']);
-
-            if (isset($notification['channels'])) {
-                $this->line(json_encode($notification['channels'], JSON_PRETTY_PRINT));
-            }
+        $hits->groupBy('name')->each(function ($group, $name) {
+            $this->info('* '.$name);
+            $this->line('Source file '.$group->first()['notification']['description']);
         });
 
-        if (! $notifications->count()) {
+        if (! $hits->count()) {
             $this->info("Nothing to send, aborting");
             return;
         }
 
-        $this->info("Submitting {$notifications->count()} notifications via the API");
+        $this->info("Submitting {$hits->count()} notification records via the API");
 
         $client = resolve(ApiClient::class);
-        $client->submitNotifications($notifications->values()->toArray());
+        $client->submitNotifications($hits->values()->toArray());
 
         $storage->cleanUp();
     }
@@ -84,28 +76,23 @@ class Submit extends Command
             return collect([]);
         }
 
-        $files = scandir(storage_path($folder));
+        $files = scandir($folder);
 
         return collect($files)
             ->map(function ($file) use ($folder) {
-                preg_match('/(?<class>.+)_(?<channel>.+)\.render$/', $file, $matches);
+                preg_match('/(?<class>.+)_(?<channel>.+)_(?<timestamp>\d+)_\d+\.hit$/', $file, $matches);
 
                 if (! $matches) {
                     return;
                 }
 
                 return [
-                    'class' => $matches['class'],
+                    'name' => $matches['class'],
                     'channel' => $matches['channel'],
-                    'render' => file_get_contents($folder.DIRECTORY_SEPARATOR.$file),
+                    'sent_at' => $matches['timestamp'],
+                    'contents' => base64_encode(file_get_contents($folder.DIRECTORY_SEPARATOR.$file)),
                 ];
             })
-            ->filter()
-            ->groupBy('class')
-            ->map(function ($class) {
-                return [
-                    'channels' => $class->mapWithKeys(fn ($g) => [$g['channel'] => ['render' => $g['render']]]),
-                ];
-            });
+            ->filter();
     }
 }
