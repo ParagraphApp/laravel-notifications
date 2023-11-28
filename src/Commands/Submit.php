@@ -75,7 +75,7 @@ class Submit extends Command
         $client = resolve(ApiClient::class);
         $client->submitNotifications($notifications->values()->toArray());
 
-        $storage->resetCounters();
+        $storage->cleanUp();
     }
 
     protected function findTemporaryFiles($folder)

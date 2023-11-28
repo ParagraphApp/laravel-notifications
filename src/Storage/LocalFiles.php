@@ -19,7 +19,7 @@ class LocalFiles
         // Anything bad that happens should be ignored
         try {
             $html = $message->getSymfonySentMessage()->getOriginalMessage()->getHtmlBody();
-            $this->save($html, $notification, $this::POSTFIX_EMAIL);
+            $this->save($html, get_class($notification), $this::POSTFIX_EMAIL);
         } catch (\Throwable $e) {
             Log::error("Failed saving a rendered notification: {$e->getMessage()}");
         }
@@ -28,32 +28,26 @@ class LocalFiles
     public function storeSms(array $message, Notification $notification)
     {
         try {
-            $this->save($message['content'], $notification, $this::POSTFIX_SMS);
+            $this->save($message['content'], get_class($notification), $this::POSTFIX_SMS);
         } catch (\Throwable $e) {
             Log::error("Failed saving a rendered notification: {$e->getMessage()}");
         }
     }
 
-    public function save($contents, Notification $notification, $type)
+    public function save($contents, $name, $type)
     {
-        $path = $this->filename($notification, $type);
+        $path = $this->filename($name, $type);
 
         if (! file_exists(dirname($path))) {
             mkdir(dirname($path));
         }
 
-        $this->recordAHit($path);
+        $this->recordAHit($contents, $path);
 
-        if (file_exists($path)) {
-            return;
-        }
-
-        file_put_contents($path, $contents);
-
-        Log::info('Saved a new notification render for '.get_class($notification)." as {$path}");
+        Log::info("Saved a new notification render for {$name} as {$path}");
     }
 
-    public function resetCounters()
+    public function cleanUp()
     {
         if (! file_exists(storage_path($this->workingDirectory))) {
             return;
@@ -62,37 +56,30 @@ class LocalFiles
         $files = scandir(storage_path($this->workingDirectory));
 
         collect($files)
-            ->filter(fn ($path) => preg_match('/\.counter$/', $path))
-            ->unique()
+            ->filter(fn ($path) => preg_match('/\.hit$/', $path))
             ->each(fn ($path) => unlink(storage_path($this->workingDirectory.DIRECTORY_SEPARATOR.$path)));
-
     }
 
-    protected function recordAHit($path)
+    protected function recordAHit($contents, $path)
     {
-        $counterFile = "{$path}.counter";
-
-        if (! file_exists($counterFile)) {
-            touch($counterFile);
-            $currentNumber = 0;
-        } else {
-            $currentNumber = file_get_contents($counterFile);
+        if (file_exists($path)) {
+            return;
         }
 
-        $fp = fopen($counterFile, 'r+');
+        $fp = fopen($path, 'r+');
 
         if (flock($fp, LOCK_EX | LOCK_NB)) {
-            file_put_contents($counterFile, $currentNumber + 1);
-            flock($fp, LOCK_UN);
+            file_put_contents($path, $contents);
         }
 
         fclose($fp);
     }
 
-    protected function filename(Notification $notification, $type)
+    protected function filename($name, $type)
     {
-        $key = get_class($notification);
+        $timestamp = time();
+        $pid = getmypid();
 
-        return storage_path("{$this->workingDirectory}/{$key}_{$type}.render");
+        return storage_path("{$this->workingDirectory}/{$name}_{$type}_{$timestamp}_{$pid}.hit");
     }
 }
