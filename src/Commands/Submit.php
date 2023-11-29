@@ -42,7 +42,7 @@ class Submit extends Command
         $hits = $this
             ->findTemporaryFiles(storage_path($storage->workingDirectory))
             ->map(function($hit) use ($notifications) {
-                $notification = $notifications->get($hit['name']);
+                $notification = $notifications->get($hit['notification']['name']);
 
                 if (! $notification) {
                     return;
@@ -79,20 +79,8 @@ class Submit extends Command
         $files = scandir($folder);
 
         return collect($files)
-            ->map(function ($file) use ($folder) {
-                preg_match('/(?<class>.+)_(?<channel>.+)_(?<timestamp>\d+)_\d+\.hit$/', $file, $matches);
-
-                if (! $matches) {
-                    return;
-                }
-
-                return [
-                    'name' => $matches['class'],
-                    'channel' => $matches['channel'],
-                    'sent_at' => $matches['timestamp'],
-                    'contents' => base64_encode(file_get_contents($folder.DIRECTORY_SEPARATOR.$file)),
-                ];
-            })
+            ->filter(fn ($file) => preg_match('/(?<class>.+)_(?<timestamp>\d+\.\d+)_\d+\.hit$/', $file))
+            ->map(fn ($file) => json_decode(file_get_contents($folder.DIRECTORY_SEPARATOR.$file), true))
             ->filter();
     }
 }

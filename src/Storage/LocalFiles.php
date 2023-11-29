@@ -13,37 +13,68 @@ class LocalFiles
 
     public string $workingDirectory = 'app/comms';
 
-    public function storeMail(SentMessage $message, Notification $notification)
+    public function storeMail(SentMessage $message, Notification $notification, $notifiable)
     {
         // Under no circumstances we want our special hook to be able to break the application
         // Anything bad that happens should be ignored
         try {
+            $recipient = method_exists($notifiable, 'paragraphId') ? $notifiable->paragraphId() : $notifiable->id;
+
             $html = $message->getSymfonySentMessage()->getOriginalMessage()->getHtmlBody();
-            $this->save($html, get_class($notification), $this::POSTFIX_EMAIL);
+
+            $this->save(
+                $html,
+                get_class($notification),
+                $this::POSTFIX_EMAIL,
+                $recipient
+            );
         } catch (\Throwable $e) {
             Log::error("Failed saving a rendered notification: {$e->getMessage()}");
         }
     }
 
-    public function storeSms(array $message, Notification $notification)
+    public function storeSms(array $message, Notification $notification, $notifiable)
     {
         try {
-            $this->save($message['content'], get_class($notification), $this::POSTFIX_SMS);
+            $recipient = method_exists($notifiable, 'paragraphId') ? $notifiable->paragraphId() : $notifiable->id;
+
+            $this->save(
+                $message['content'],
+                get_class($notification),
+                $this::POSTFIX_SMS,
+                $recipient
+            );
         } catch (\Throwable $e) {
             Log::error("Failed saving a rendered notification: {$e->getMessage()}");
         }
     }
 
-    public function save($contents, $name, $type)
+    public function save($contents, $name, $channel, $recipient)
     {
-        $path = $this->filename($name, $type);
+        $path = $this->filename($name);
 
         if (! file_exists(dirname($path))) {
             mkdir(dirname($path));
         }
 
         $start = microtime(true);
+
+        if (function_exists('gzcompress')) {
+            $contents = gzcompress($contents);
+        }
+
+        $contents = json_encode([
+            'notification' => [
+                'name' => $name,
+            ],
+            'channel' => $channel,
+            'recipient' => $recipient,
+            'sent_at' => time(),
+            'contents' => base64_encode($contents)
+        ]);
+
         $this->recordAHit($contents, $path);
+
         $end = microtime(true);
 
         if (config('app.debug')) {
@@ -76,9 +107,6 @@ class LocalFiles
 
         $fp = fopen($path, 'w');
 
-        if (function_exists('gzcompress')) {
-            $contents = gzcompress($contents);
-        }
 
         if (flock($fp, LOCK_EX | LOCK_NB)) {
             file_put_contents($path, $contents);
@@ -87,11 +115,11 @@ class LocalFiles
         fclose($fp);
     }
 
-    protected function filename($name, $type)
+    protected function filename($name)
     {
-        $timestamp = time();
+        $timestamp = microtime(true);
         $pid = getmypid();
 
-        return storage_path("{$this->workingDirectory}/{$name}_{$type}_{$timestamp}_{$pid}.hit");
+        return storage_path("{$this->workingDirectory}/{$name}_{$timestamp}_{$pid}.hit");
     }
 }

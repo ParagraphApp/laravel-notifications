@@ -17,7 +17,7 @@ class ParagraphMailChannel extends LaravelMailChannel
             return $sent;
         }
 
-        resolve(Storage::class)->storeMail($sent, $notification);
+        resolve(Storage::class)->storeMail($sent, $notification, $notifiable);
 
         return $sent;
     }
